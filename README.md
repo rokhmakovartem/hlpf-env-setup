@@ -2,34 +2,39 @@
 - Name: Рохмаков Артем Сергійович
 - Group: 232/2 он
  
-## Практичне заняття №3 — CRUD REST API для MiniShop
+## Практичне заняття №4 — DTO + class-validator + Pipes
 
 ### Структура репозиторію
 ```
 .
 ├── src/
 │   ├── categories/
+│   │   ├── dto/
+│   │   │   ├── create-category.dto.ts
+│   │   │   └── update-category.dto.ts
 │   │   ├── category.entity.ts
 │   │   ├── categories.module.ts
 │   │   ├── categories.service.ts
 │   │   └── categories.controller.ts
 │   ├── products/
+│   │   ├── dto/
+│   │   │   ├── create-product.dto.ts
+│   │   │   └── update-product.dto.ts
 │   │   ├── product.entity.ts
 │   │   ├── products.module.ts
 │   │   ├── products.service.ts
 │   │   └── products.controller.ts
+│   ├── common/
+│   │   └── pipes/
+│   │   	└── trim.pipe.ts
 │   ├── migrations/
-│   │   ├── 1700000001-CreateTables.ts
-│   │   └── <timestamp>-AddIsActiveToProducts.ts
 │   ├── data-source.ts
-│   ├── app.module.ts
-│   └── main.ts
+│   ├── main.ts
+│   └── app.module.ts
 ├── Dockerfile
 ├── docker-compose.yml
 └── README.md
-...
 ```
-
 
 ## Запуск проекту
 ```bash
@@ -52,33 +57,27 @@ docker compose up --build
 | DELETE | /api/products/:id | Видалити продукт |
 
 
-### Перевірка міграцій
+### Тест валідації — порожнє ім'я категорії
 ```text
-           List of relations
- Schema |    Name    | Type  |  Owner   
---------+------------+-------+----------
- public | categories | table | nestuser
- public | migrations | table | nestuser
- public | products   | table | nestuser
-(3 rows)
+{"message":["name must be longer than or equal to 2 characters"],"error":"Bad Request","statusCode":400}
 ```
  
-### Тест створення категорії
+### Тест валідації — від'ємна ціна продукту
 ```text
-{"id":1,"name":"Electronics","description":"Electronic devices","createdAt":"2026-04-02T11:17:19.922Z"}
+{"message":["price must not be less than 0.01"],"error":"Bad Request","statusCode":400}
 ```
  
-### Тест створення продукту
+### Тест валідації — зайве поле
 ```text
-{"id":1,"name":"Laptop","description":"Gaming laptop","price":999.99,"stock":10,"isActive":true,"category":{"id":1},"createdAt":"2026-04-02T11:22:14.264Z","updatedAt":"2026-04-02T11:22:14.264Z"}
+{"message":["property isAdmin should not exist"],"error":"Bad Request","statusCode":400}
 ```
  
-### Тест отримання продуктів
+### Тест TrimPipe
 ```text
-[{"id":1,"name":"Laptop","description":"Gaming laptop","price":"999.99","stock":10,"isActive":true,"category":{"id":1,"name":"Electronics","description":"Electronic devices","createdAt":"2026-04-02T11:17:19.922Z"},"createdAt":"2026-04-02T11:22:14.264Z","updatedAt":"2026-04-02T11:22:14.264Z"}]
+{"id":4,"name":"Trimmed","description":null,"createdAt":"2026-04-16T13:32:19.111Z"}
 ```
  
-### Тест 404
+### Тест валідне створення продукту
 ```text
-{"message":"Cannot GET /api/fsff/ddfsfs","error":"Not Found","statusCode":404}
+{"id":2,"name":"iPhone 16","description":null,"price":999.99,"stock":50,"isActive":true,"category":{"id":1},"createdAt":"2026-04-16T13:31:03.664Z","updatedAt":"2026-04-16T13:31:03.664Z"}
 ```
