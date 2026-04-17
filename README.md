@@ -1,32 +1,37 @@
 ## Student
 - Name: Рохмаков Артем Сергійович
 - Group: 232/2 он
- 
-## Практичне заняття №4 — DTO + class-validator + Pipes
+
+## Практичне заняття №5 — JWT Authentication + Guards + RBAC
 
 ### Структура репозиторію
 ```
 .
 ├── src/
-│   ├── categories/
+│   ├── auth/
 │   │   ├── dto/
-│   │   │   ├── create-category.dto.ts
-│   │   │   └── update-category.dto.ts
-│   │   ├── category.entity.ts
-│   │   ├── categories.module.ts
-│   │   ├── categories.service.ts
-│   │   └── categories.controller.ts
-│   ├── products/
-│   │   ├── dto/
-│   │   │   ├── create-product.dto.ts
-│   │   │   └── update-product.dto.ts
-│   │   ├── product.entity.ts
-│   │   ├── products.module.ts
-│   │   ├── products.service.ts
-│   │   └── products.controller.ts
+│   │   │   ├── register.dto.ts
+│   │   │   └── login.dto.ts
+│   │   ├── auth.module.ts
+│   │   ├── auth.service.ts
+│   │   └── auth.controller.ts
+│   ├── users/
+│   │   ├── user.entity.ts
+│   │   ├── users.module.ts
+│   │   └── users.service.ts
 │   ├── common/
+│   │   ├── enums/
+│   │   │   └── role.enum.ts
+│   │   ├── guards/
+│   │   │   ├── jwt-auth.guard.ts
+│   │   │   └── roles.guard.ts
+│   │   ├── decorators/
+│   │   │   ├── current-user.decorator.ts
+│   │   │   └── roles.decorator.ts
 │   │   └── pipes/
-│   │   	└── trim.pipe.ts
+│   │       └── trim.pipe.ts
+│   ├── categories/ ...
+│   ├── products/ ...
 │   ├── migrations/
 │   ├── data-source.ts
 │   ├── main.ts
@@ -36,48 +41,47 @@
 └── README.md
 ```
 
-## Запуск проекту
+### Запуск проекту
 ```bash
-cp .env.example .env   # налаштувати значення
+cp .env.example .env
 docker compose up --build
 ```
 
 ### API Endpoints
-| Method | URL | Опис |
-|--------|-----|------|
-| GET | /api/categories | Список категорій |
-| GET | /api/categories/:id | Одна категорія |
-| POST | /api/categories | Створити категорію |
-| PATCH | /api/categories/:id | Оновити категорію |
-| DELETE | /api/categories/:id | Видалити категорію |
-| GET | /api/products | Список продуктів |
-| GET | /api/products/:id | Один продукт |
-| POST | /api/products | Створити продукт |
-| PATCH | /api/products/:id | Оновити продукт |
-| DELETE | /api/products/:id | Видалити продукт |
+| Method | URL | Auth | Role |
+|--------|-----|------|------|
+| POST | /auth/register | - | - |
+| POST | /auth/login | - | - |
+| GET | /api/categories | - | - |
+| POST | /api/categories | JWT | admin |
+| PATCH | /api/categories/:id | JWT | admin |
+| DELETE | /api/categories/:id | JWT | admin |
+| GET | /api/products | - | - |
+| POST | /api/products | JWT | admin |
+| PATCH | /api/products/:id | JWT | admin |
+| DELETE | /api/products/:id | JWT | admin |
 
+### Тест реєстрації
+```text
+{"id":3,"email":"newuser@test.com","name":"Test User","role":"user","createdAt":"2026-04-17T18:59:19.096Z"}
+```
 
-### Тест валідації — порожнє ім'я категорії
+### Тест логіну
 ```text
-{"message":["name must be longer than or equal to 2 characters"],"error":"Bad Request","statusCode":400}
+{"accessToken":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOjMsImVtYWlsIjoibmV3dXNlckB0ZXN0LmNvbSIsInJvbGUiOiJ1c2VyIiwiaWF0IjoxNzc2NDUyMzY5LCJleHAiOjE3NzY0NTU5Njl9.PXGePM1YK1Z1NNpmZdwdiwaXgALpWIIEPBRatLtW2kQ"}
 ```
- 
-### Тест валідації — від'ємна ціна продукту
+
+### Тест 401 — запит без токена
 ```text
-{"message":["price must not be less than 0.01"],"error":"Bad Request","statusCode":400}
+{"message":"Missing authorization token","error":"Unauthorized","statusCode":401}
 ```
- 
-### Тест валідації — зайве поле
+
+### Тест 403 — запит з роллю user
 ```text
-{"message":["property isAdmin should not exist"],"error":"Bad Request","statusCode":400}
+{"message":"Insufficient permissions","error":"Forbidden","statusCode":403}
 ```
- 
-### Тест TrimPipe
+
+### Тест успішного створення від admin
 ```text
-{"id":4,"name":"Trimmed","description":null,"createdAt":"2026-04-16T13:32:19.111Z"}
-```
- 
-### Тест валідне створення продукту
-```text
-{"id":2,"name":"iPhone 16","description":null,"price":999.99,"stock":50,"isActive":true,"category":{"id":1},"createdAt":"2026-04-16T13:31:03.664Z","updatedAt":"2026-04-16T13:31:03.664Z"}
+{"id":3,"name":"MacBook Pro","description":null,"price":2499.99,"stock":10,"isActive":true,"createdAt":"2026-04-17T18:59:59.985Z","updatedAt":"2026-04-17T18:59:59.985Z"}
 ```
