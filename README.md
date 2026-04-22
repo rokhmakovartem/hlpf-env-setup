@@ -2,7 +2,7 @@
 - Name: Рохмаков Артем Сергійович
 - Group: 232/2 он
 
-## Практичне заняття №6 — Interceptors + Exception Filters + Swagger
+## Практичне заняття №7 — Redis + Pagination + Filtering
 
 ### Структура репозиторію
 ```
@@ -30,7 +30,8 @@
 │   ├── products/
 │   │   ├── dto/
 │   │   │   ├── create-product.dto.ts
-│   │   │   └── update-product.dto.ts
+│   │   │   ├── update-product.dto.ts
+│   │   │   └── product-query.dto.ts
 │   │   ├── product.entity.ts
 │   │   ├── products.module.ts
 │   │   ├── products.service.ts
@@ -51,6 +52,8 @@
 │   │   │   └── http-exception.filter.ts
 │   │   └── pipes/
 │   │       └── trim.pipe.ts
+│   ├── seeds/
+│   │   └── seed.ts
 │   ├── migrations/
 │   ├── data-source.ts
 │   ├── main.ts
@@ -65,6 +68,7 @@
 ```bash
 cp .env.example .env
 docker compose up --build
+docker compose run --rm app npm run seed
 ```
 
 ### Swagger UI
@@ -72,12 +76,66 @@ http://localhost:3000/api/docs
 
 ![Swagger](swagger-screenshot.png)
 
+### API: GET /api/products
+
+| Параметр | Тип | Default | Опис |
+|----------|-----|---------|------|
+| page | number | 1 | Номер сторінки |
+| pageSize | number | 10 | Елементів на сторінку (max 100) |
+| sort | string | createdAt | Поле сортування |
+| order | asc/desc | desc | Напрямок |
+| categoryId | number | - | Фільтр за категорією |
+| minPrice | number | - | Мінімальна ціна |
+| maxPrice | number | - | Максимальна ціна |
+| search | string | - | Пошук за назвою (ILIKE) |
+
+### Тест пагінації
+```text
+curl "http://localhost:3000/api/products?page=1&pageSize=5"
+
+{"data":{"items":[...],"meta":{"page":1,"pageSize":5,"total":32,"totalPages":7}},"statusCode":200,"timestamp":"2026-04-22T17:03:23.923Z"}
+```
+
+### Тест фільтрації
+```text
+curl "http://localhost:3000/api/products?categoryId=1&minPrice=500&sort=price&order=asc"
+
+{"data":{"items":[...],"meta":{"page":1,"pageSize":10,"total":14,"totalPages":2}},"statusCode":200,"timestamp":"2026-04-22T17:03:31.139Z"}
+```
+
+### Тест пошуку
+```text
+curl "http://localhost:3000/api/products?search=mac"
+
+{"data":{"items":[{"id":27,"name":"MacBook Pro v3",...},{"id":17,"name":"MacBook Pro v2",...},{"id":6,"name":"MacBook Pro",...}],"meta":{"page":1,"pageSize":10,"total":3,"totalPages":1}},"statusCode":200,"timestamp":"2026-04-22T17:03:27.552Z"}
+```
+
+### Тест валідації (pageSize > 100)
+```text
+curl "http://localhost:3000/api/products?pageSize=999"
+
+{"error":{"code":400,"message":"Validation failed","details":["pageSize must not be greater than 100"],"traceId":"b671a0bc-cbb4-430a-b6b5-11f954d7f4c9"},"timestamp":"2026-04-22T17:03:34.846Z"}
+```
+
+### Тест кешування (Redis)
+Кешування реалізовано через `@nestjs/cache-manager` з Redis store.
+Ключ кешу формується з query параметрів: `products:${JSON.stringify(query)}`.
+TTL = 60 секунд. Інвалідація відбувається при POST/PATCH/DELETE.
+
 ### Формат успішної відповіді
 ```json
 {
-  "data": { ... },
+  "data": {
+    "items": [...],
+    "meta": {
+      "page": 1,
+      "pageSize": 10,
+      "total": 32,
+      "totalPages": 4
+    }
+  },
   "statusCode": 200,
-  "timestamp": "2025-01-15T10:30:00.000Z"
+  "timestamp": "2026-04-22T17:03:23.923Z"
 }
 ```
 
@@ -87,24 +145,11 @@ http://localhost:3000/api/docs
   "error": {
     "code": 400,
     "message": "Validation failed",
-    "details": ["name must be longer than or equal to 2 characters"],
-    "traceId": "81e50616-7ec7-40c6-b7ff-9b0c1c7a0e0c"
+    "details": ["pageSize must not be greater than 100"],
+    "traceId": "b671a0bc-cbb4-430a-b6b5-11f954d7f4c9"
   },
-  "timestamp": "2025-01-15T10:31:00.000Z"
+  "timestamp": "2026-04-22T17:03:34.846Z"
 }
-```
-
-### Приклад логів (LoggingInterceptor)
-```text
-[Nest] 29  - 04/20/2026, 12:57:28 PM     LOG [HTTP] GET /api/products — 200 — 12ms
-[Nest] 29  - 04/20/2026, 12:57:34 PM   ERROR [Exception] [16336487-c340-4075-845b-5681dabbe4ac] GET /api/products/999 — 404 — Product #999 not found
-```
-
-### Тест помилки з traceId
-```text
-curl http://localhost:3000/api/products/999
-
-{"error":{"code":404,"message":"Product #999 not found","traceId":"16336487-c340-4075-845b-5681dabbe4ac"},"timestamp":"2026-04-20T12:57:34.680Z"}
 ```
 
 ### API Endpoints
