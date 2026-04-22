@@ -2,7 +2,17 @@
 - Name: Рохмаков Артем Сергійович
 - Group: 232/2 он
 
-## Практичне заняття №7 — Redis + Pagination + Filtering
+## MiniShop API — Фінальний проєкт
+
+REST API інтернет-магазину на NestJS + PostgreSQL + Redis.
+
+### Технології
+- NestJS + TypeScript
+- PostgreSQL + TypeORM (міграції, QueryBuilder)
+- Redis (кешування з інвалідацією)
+- JWT автентифікація + RBAC авторизація
+- class-validator + class-transformer
+- Swagger / OpenAPI
 
 ### Структура репозиторію
 ```
@@ -36,9 +46,22 @@
 │   │   ├── products.module.ts
 │   │   ├── products.service.ts
 │   │   └── products.controller.ts
+│   ├── orders/
+│   │   ├── dto/
+│   │   │   ├── create-order.dto.ts
+│   │   │   ├── create-order-item.dto.ts
+│   │   │   ├── update-order-status.dto.ts
+│   │   │   └── order-query.dto.ts
+│   │   ├── entities/
+│   │   │   ├── order.entity.ts
+│   │   │   └── order-item.entity.ts
+│   │   ├── orders.module.ts
+│   │   ├── orders.service.ts
+│   │   └── orders.controller.ts
 │   ├── common/
 │   │   ├── enums/
-│   │   │   └── role.enum.ts
+│   │   │   ├── role.enum.ts
+│   │   │   └── order-status.enum.ts
 │   │   ├── guards/
 │   │   │   ├── jwt-auth.guard.ts
 │   │   │   └── roles.guard.ts
@@ -64,7 +87,7 @@
 └── README.md
 ```
 
-### Запуск проекту
+### Запуск
 ```bash
 cp .env.example .env
 docker compose up --build
@@ -76,66 +99,82 @@ http://localhost:3000/api/docs
 
 ![Swagger](swagger-screenshot.png)
 
-### API: GET /api/products
+### API Endpoints
 
-| Параметр | Тип | Default | Опис |
-|----------|-----|---------|------|
-| page | number | 1 | Номер сторінки |
-| pageSize | number | 10 | Елементів на сторінку (max 100) |
-| sort | string | createdAt | Поле сортування |
-| order | asc/desc | desc | Напрямок |
-| categoryId | number | - | Фільтр за категорією |
-| minPrice | number | - | Мінімальна ціна |
-| maxPrice | number | - | Максимальна ціна |
-| search | string | - | Пошук за назвою (ILIKE) |
+#### Auth
+| Method | URL | Auth | Опис |
+|--------|-----|------|------|
+| POST | /auth/register | - | Реєстрація |
+| POST | /auth/login | - | Логін → JWT |
 
-### Тест пагінації
+#### Categories
+| Method | URL | Auth | Опис |
+|--------|-----|------|------|
+| GET | /api/categories | - | Список |
+| GET | /api/categories/:id | - | Одна |
+| POST | /api/categories | admin | Створити |
+| PATCH | /api/categories/:id | admin | Оновити |
+| DELETE | /api/categories/:id | admin | Видалити |
+
+#### Products
+| Method | URL | Auth | Опис |
+|--------|-----|------|------|
+| GET | /api/products | - | Список + pagination + filter |
+| GET | /api/products/:id | - | Один |
+| POST | /api/products | admin | Створити |
+| PATCH | /api/products/:id | admin | Оновити |
+| DELETE | /api/products/:id | admin | Видалити |
+
+#### Orders
+| Method | URL | Auth | Опис |
+|--------|-----|------|------|
+| POST | /api/orders | user | Створити замовлення |
+| GET | /api/orders | user | Мої / Всі (admin) |
+| GET | /api/orders/:id | user | Одне (ownership) |
+| PATCH | /api/orders/:id/status | admin | Змінити статус |
+| DELETE | /api/orders/:id | admin | Видалити |
+
+### Тест створення замовлення
 ```text
-curl "http://localhost:3000/api/products?page=1&pageSize=5"
+curl -X POST http://localhost:3000/api/orders -H "Content-Type: application/json" -H "Authorization: Bearer <TOKEN>" -d '{"items":[{"productId":4,"quantity":2},{"productId":5,"quantity":1}]}'
 
-{"data":{"items":[...],"meta":{"page":1,"pageSize":5,"total":32,"totalPages":7}},"statusCode":200,"timestamp":"2026-04-22T17:03:23.923Z"}
+{"data":{"id":1,"status":"pending","totalPrice":"2847.00","user":{"id":1},"items":[{"id":1,"quantity":2,"price":"999.00","product":{"id":4,"name":"iPhone 16",...}},{"id":2,"quantity":1,"price":"849.00","product":{"id":5,"name":"Galaxy S24",...}}],"createdAt":"2026-04-22T17:14:22.299Z"},"statusCode":201,...}
 ```
 
-### Тест фільтрації
+### Тест ownership (403)
 ```text
-curl "http://localhost:3000/api/products?categoryId=1&minPrice=500&sort=price&order=asc"
+curl http://localhost:3000/api/orders/1 -H "Authorization: Bearer <ALICE_TOKEN>"
 
-{"data":{"items":[...],"meta":{"page":1,"pageSize":10,"total":14,"totalPages":2}},"statusCode":200,"timestamp":"2026-04-22T17:03:31.139Z"}
+{"error":{"code":403,"message":"You can only view your own orders","traceId":"b1295f68-f732-4efd-af50-1f835978cdb3"},"timestamp":"2026-04-22T17:14:41.660Z"}
 ```
 
-### Тест пошуку
+### Тест зміни статусу
 ```text
-curl "http://localhost:3000/api/products?search=mac"
+curl -X PATCH http://localhost:3000/api/orders/1/status -H "Content-Type: application/json" -H "Authorization: Bearer <ADMIN_TOKEN>" -d '{"status":"confirmed"}'
 
-{"data":{"items":[{"id":27,"name":"MacBook Pro v3",...},{"id":17,"name":"MacBook Pro v2",...},{"id":6,"name":"MacBook Pro",...}],"meta":{"page":1,"pageSize":10,"total":3,"totalPages":1}},"statusCode":200,"timestamp":"2026-04-22T17:03:27.552Z"}
+{"data":{"id":1,"status":"confirmed","totalPrice":"2847.00","items":[...],"createdAt":"..."},"statusCode":200,...}
 ```
 
-### Тест валідації (pageSize > 100)
+### Тест невалідного переходу статусу
 ```text
-curl "http://localhost:3000/api/products?pageSize=999"
+curl -X PATCH http://localhost:3000/api/orders/1/status -H "Content-Type: application/json" -H "Authorization: Bearer <ADMIN_TOKEN>" -d '{"status":"pending"}'
 
-{"error":{"code":400,"message":"Validation failed","details":["pageSize must not be greater than 100"],"traceId":"b671a0bc-cbb4-430a-b6b5-11f954d7f4c9"},"timestamp":"2026-04-22T17:03:34.846Z"}
+{"error":{"code":400,"message":"Cannot transition from \"confirmed\" to \"pending\"","traceId":"fd0f6b01-96d6-40b6-901e-880d73be635e"},"timestamp":"2026-04-22T17:14:53.815Z"}
 ```
 
-### Тест кешування (Redis)
-Кешування реалізовано через `@nestjs/cache-manager` з Redis store.
-Ключ кешу формується з query параметрів: `products:${JSON.stringify(query)}`.
-TTL = 60 секунд. Інвалідація відбувається при POST/PATCH/DELETE.
+### Тест insufficient stock
+```text
+curl -X POST http://localhost:3000/api/orders -H "Content-Type: application/json" -H "Authorization: Bearer <TOKEN>" -d '{"items":[{"productId":4,"quantity":99999}]}'
+
+{"error":{"code":400,"message":"Insufficient stock for \"iPhone 16\": available 48, requested 99999","traceId":"d28650af-287d-4ff7-b7b1-6584dd9dac7e"},"timestamp":"2026-04-22T17:15:00.550Z"}
+```
 
 ### Формат успішної відповіді
 ```json
 {
-  "data": {
-    "items": [...],
-    "meta": {
-      "page": 1,
-      "pageSize": 10,
-      "total": 32,
-      "totalPages": 4
-    }
-  },
+  "data": { ... },
   "statusCode": 200,
-  "timestamp": "2026-04-22T17:03:23.923Z"
+  "timestamp": "2026-04-22T17:14:22.316Z"
 }
 ```
 
@@ -144,26 +183,9 @@ TTL = 60 секунд. Інвалідація відбувається при PO
 {
   "error": {
     "code": 400,
-    "message": "Validation failed",
-    "details": ["pageSize must not be greater than 100"],
-    "traceId": "b671a0bc-cbb4-430a-b6b5-11f954d7f4c9"
+    "message": "...",
+    "traceId": "..."
   },
-  "timestamp": "2026-04-22T17:03:34.846Z"
+  "timestamp": "..."
 }
 ```
-
-### API Endpoints
-| Method | URL | Auth | Role |
-|--------|-----|------|------|
-| POST | /auth/register | - | - |
-| POST | /auth/login | - | - |
-| GET | /api/categories | - | - |
-| GET | /api/categories/:id | - | - |
-| POST | /api/categories | JWT | admin |
-| PATCH | /api/categories/:id | JWT | admin |
-| DELETE | /api/categories/:id | JWT | admin |
-| GET | /api/products | - | - |
-| GET | /api/products/:id | - | - |
-| POST | /api/products | JWT | admin |
-| PATCH | /api/products/:id | JWT | admin |
-| DELETE | /api/products/:id | JWT | admin |
